@@ -1,44 +1,616 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { calcPctAbsolute, calcPctPerUnit, calculateGroupScores } from '../utils/scoring'
-import RankingTable from '../components/RankingTable'
-import TrendChart from '../components/TrendChart'
-import FindingSlideshow from '../components/FindingSlideshow'
-import { format, startOfWeek, endOfWeek, subWeeks, addWeeks } from 'date-fns'
+import {
+  calcPctAbsolute, calcPctPerUnit, calculateGroupScores,
+  formatNumber, formatPct, getPctColor, getRankBadgeClass, getRankLabel,
+} from '../utils/scoring'
+import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Zap, TrendingDown, Award, AlertTriangle } from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ReferenceLine, ResponsiveContainer, Cell,
+} from 'recharts'
+import {
+  Zap, TrendingDown, Award, AlertTriangle, ChevronLeft, ChevronRight,
+  Sun, Moon, LogOut, LogIn, Settings, LayoutDashboard,
+  ClipboardList, ImageOff, PanelLeftClose, PanelLeftOpen,
+  PlusCircle, Database, Monitor, TrendingUp,
+} from 'lucide-react'
+import { useTheme } from '../contexts/ThemeContext'
+import { useAuth } from '../contexts/AuthContext'
 
 const GROUPS = ['Sweater', 'Lifestyle']
 
-function StatCard({ icon, label, value, sub, color = 'emerald' }) {
-  const colorMap = {
-    emerald: 'from-primary-500 to-primary-700',
-    cyan: 'from-secondary-500 to-secondary-700',
-    amber: 'from-amber-400 to-orange-500',
-    rose: 'from-rose-500 to-red-600',
+function getWeekLabel(date) {
+  const ws = startOfWeek(date, { weekStartsOn: 1 })
+  const we = endOfWeek(date, { weekStartsOn: 1 })
+  return `${format(ws, 'dd/MM')} – ${format(we, 'dd/MM', { locale: vi })}`
+}
+
+// ─────────────────────────────────────────────────────────
+// VIOLATION SLIDESHOW (ô 7)
+// ─────────────────────────────────────────────────────────
+function ViolationSlideshow({ slides }) {
+  const [idx, setIdx] = useState(0)
+  const [paused, setPaused] = useState(false)
+
+  useEffect(() => {
+    if (slides.length <= 1 || paused) return
+    const t = setInterval(() => setIdx(i => (i + 1) % slides.length), 3000)
+    return () => clearInterval(t)
+  }, [slides.length, paused])
+
+  useEffect(() => { setIdx(0) }, [slides.length])
+
+  const slide = slides[idx]
+
+  return (
+    <div className="card p-0 overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between flex-shrink-0">
+        <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+          <AlertTriangle size={14} className="text-primary-500" />
+          Hình ảnh vi phạm
+        </h3>
+        {slides.length > 0 && (
+          <span className="text-xs text-gray-400">{idx + 1}/{slides.length}</span>
+        )}
+      </div>
+
+      {/* Fixed 4:3 image container */}
+      <div
+        className="relative bg-gray-100 dark:bg-gray-800 flex-shrink-0"
+        style={{ paddingTop: '75%' }}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+      >
+        {slides.length === 0 ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-600">
+            <ImageOff size={32} className="mb-2" />
+            <p className="text-xs">Chưa có hình ảnh vi phạm</p>
+          </div>
+        ) : (
+          <>
+            <img
+              key={slide.imageUrl}
+              src={slide.imageUrl}
+              alt={slide.description || 'Vi phạm'}
+              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+              onError={e => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="%23374151" width="400" height="300"/><text x="50%" y="50%" fill="%236b7280" text-anchor="middle" dy=".3em" font-size="14">Không tải được ảnh</text></svg>' }}
+            />
+            {/* Dark overlay + info at bottom */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-3 pt-8 pb-3">
+              {slide.blockName && (
+                <div className="text-white text-xs font-semibold mb-0.5">📍 {slide.blockName}</div>
+              )}
+              {slide.description && (
+                <div className="text-white/90 text-xs line-clamp-2 mb-0.5">{slide.description}</div>
+              )}
+              {slide.reportedAt && (
+                <div className="text-white/60 text-xs">
+                  🕐 {format(new Date(slide.reportedAt), 'HH:mm — dd/MM/yyyy', { locale: vi })}
+                </div>
+              )}
+            </div>
+            {/* Prev / Next buttons */}
+            {slides.length > 1 && (
+              <>
+                <button
+                  onClick={() => setIdx(i => (i - 1 + slides.length) % slides.length)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors">
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setIdx(i => (i + 1) % slides.length)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors">
+                  <ChevronRight size={16} />
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Dot indicators */}
+      {slides.length > 1 && slides.length <= 15 && (
+        <div className="flex justify-center gap-1.5 py-2.5 flex-shrink-0">
+          {slides.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setIdx(i)}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                i === idx ? 'w-5 bg-primary-500' : 'w-1.5 bg-gray-300 dark:bg-gray-600'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────
+// ELECTRICITY BAR CHART (ô 6)
+// ─────────────────────────────────────────────────────────
+function ElecBarChart({ results }) {
+  const [mode, setMode] = useState('absolute')
+
+  const data = results
+    .filter(r => r.hasData)
+    .map(r => {
+      const val = mode === 'absolute' ? r.pctAbsolute : r.pctPerUnit
+      return {
+        name: r.block.name.length > 12 ? r.block.name.slice(0, 11) + '…' : r.block.name,
+        fullName: r.block.name,
+        value: parseFloat(val.toFixed(1)),
+      }
+    })
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null
+    const d = payload[0].payload
+    return (
+      <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2 shadow-lg text-xs">
+        <div className="font-semibold text-gray-900 dark:text-white mb-0.5">{d.fullName}</div>
+        <div className={d.value >= 0 ? 'text-emerald-600' : 'text-red-500 font-medium'}>
+          {d.value >= 0 ? '↓ Giảm ' : '↑ Tăng '}{Math.abs(d.value).toFixed(1)}%
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+          Mức giảm theo khu vực
+        </h3>
+        <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
+          <button
+            onClick={() => setMode('absolute')}
+            className={`px-2.5 py-1 font-medium transition-all ${
+              mode === 'absolute'
+                ? 'gradient-bg text-white'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}>
+            Điện/ngày
+          </button>
+          <button
+            onClick={() => setMode('perUnit')}
+            className={`px-2.5 py-1 font-medium transition-all ${
+              mode === 'perUnit'
+                ? 'gradient-bg text-white'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}>
+            /SAH · /Pcs
+          </button>
+        </div>
+      </div>
+
+      {data.length === 0 ? (
+        <div className="h-40 flex items-center justify-center text-sm text-gray-400">
+          Chưa có dữ liệu tuần này
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={190}>
+          <BarChart data={data} margin={{ top: 5, right: 5, left: -18, bottom: 35 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(107,114,128,0.2)" />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 9, fill: '#6b7280' }}
+              angle={-40}
+              textAnchor="end"
+              interval={0}
+            />
+            <YAxis tick={{ fontSize: 9, fill: '#6b7280' }} unit="%" />
+            <Tooltip content={<CustomTooltip />} />
+            <ReferenceLine y={0} stroke="#6b7280" strokeWidth={1.5} />
+            <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={32}>
+              {data.map((d, i) => (
+                <Cell
+                  key={i}
+                  fill={d.value >= 0 ? '#16a34a' : '#ef4444'}
+                  fillOpacity={0.85}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+      <p className="text-xs text-gray-400 text-center -mt-1">
+        {mode === 'absolute' ? '% giảm điện/ngày so baseline (↑ = tốt)' : '% giảm điện/SAH hoặc /Pcs (↑ = tốt)'}
+      </p>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────
+// STAT CARD
+// ─────────────────────────────────────────────────────────
+function StatCard({ icon, label, value, sub, highlight = false, badgeText, badgeColor = 'green' }) {
+  if (highlight) {
+    return (
+      <div className="rounded-2xl gradient-bg p-5 shadow-lg text-white relative overflow-hidden">
+        <div className="absolute -right-4 -top-4 w-24 h-24 rounded-full bg-white/10" />
+        <div className="absolute -right-1 -bottom-6 w-20 h-20 rounded-full bg-white/5" />
+        <div className="relative">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+              {icon}
+            </div>
+            {badgeText && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">
+                {badgeText}
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-white/70 font-medium uppercase tracking-wide">{label}</div>
+          <div className="text-2xl font-bold mt-1 truncate">{value}</div>
+          {sub && <div className="text-xs text-white/60 mt-0.5">{sub}</div>}
+        </div>
+      </div>
+    )
   }
   return (
-    <div className="card flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colorMap[color]} flex items-center justify-center flex-shrink-0 shadow-md`}>
-        <span className="text-white">{icon}</span>
+    <div className="card flex items-start gap-3 relative overflow-hidden">
+      <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+        {icon}
       </div>
-      <div className="min-w-0">
-        <div className="text-2xl font-bold text-gray-900 dark:text-white truncate">{value}</div>
-        <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
-        {sub && <div className="text-xs text-gray-400 dark:text-gray-500">{sub}</div>}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-1">
+          <div className="text-xs text-gray-400 font-medium uppercase tracking-wide leading-tight">{label}</div>
+          {badgeText && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
+              badgeColor === 'green'
+                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+            }`}>
+              {badgeText}
+            </span>
+          )}
+        </div>
+        <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1 truncate">{value}</div>
+        {sub && <div className="text-xs text-gray-400 mt-0.5 truncate">{sub}</div>}
       </div>
     </div>
   )
 }
 
-// Get available weeks from weekly_data
-function getWeekLabel(date) {
-  const ws = startOfWeek(date, { weekStartsOn: 1 })
-  const we = endOfWeek(date, { weekStartsOn: 1 })
-  return `${format(ws, 'dd/MM')} – ${format(we, 'dd/MM/yyyy', { locale: vi })}`
+// ─────────────────────────────────────────────────────────
+// COMPACT RANKING TABLE (ô 5)
+// ─────────────────────────────────────────────────────────
+function CompactRankingTable({ results, groupName }) {
+  if (!results || results.length === 0) {
+    return (
+      <div className="card text-center py-6 text-gray-400 text-sm">
+        Chưa có dữ liệu tuần này cho nhóm {groupName}
+      </div>
+    )
+  }
+
+  return (
+    <div className="card p-0 overflow-hidden flex-1">
+      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+        <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+          Bảng xếp hạng —{' '}
+          <span className="gradient-text">{groupName}</span>
+        </h3>
+        <span className="text-xs text-gray-400">{results.length} khu vực</span>
+      </div>
+
+      {/* Desktop */}
+      <div className="overflow-x-auto hidden sm:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              <th className="px-3 py-2.5 text-left w-10">Hạng</th>
+              <th className="px-3 py-2.5 text-left">Khu vực</th>
+              <th className="px-3 py-2.5 text-right">Điện (kWh)</th>
+              <th className="px-3 py-2.5 text-right">% Tuyệt đối</th>
+              <th className="px-3 py-2.5 text-right">% /Đơn vị</th>
+              <th className="px-3 py-2.5 text-right text-secondary-600 dark:text-secondary-400">Đ. tuyệt đối</th>
+              <th className="px-3 py-2.5 text-right text-primary-600 dark:text-primary-400">Đ. /đơn vị</th>
+              <th className="px-3 py-2.5 text-right font-bold">Tổng</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            {results.map((r, i) => {
+              const rank = i + 1
+              return (
+                <tr
+                  key={r.block.id}
+                  className={`transition-colors ${
+                    rank === 1
+                      ? 'bg-yellow-50/60 dark:bg-yellow-900/10'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'
+                  }`}>
+                  <td className="px-3 py-2.5">
+                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${getRankBadgeClass(rank)}`}>
+                      {getRankLabel(rank)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 font-medium text-gray-900 dark:text-gray-100 text-xs">
+                    {r.block.name}
+                    <span className="ml-1 text-gray-400 font-normal">({r.block.metric_type})</span>
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300 text-xs">
+                    {r.hasData ? formatNumber(r.electricity, 0) : '—'}
+                  </td>
+                  <td className={`px-3 py-2.5 text-right font-medium text-xs ${getPctColor(r.pctAbsolute)}`}>
+                    {r.hasData ? formatPct(r.pctAbsolute) : '—'}
+                  </td>
+                  <td className={`px-3 py-2.5 text-right font-medium text-xs ${getPctColor(r.pctPerUnit)}`}>
+                    {r.hasData ? formatPct(r.pctPerUnit) : '—'}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-secondary-600 dark:text-secondary-400 text-xs">
+                    {formatNumber(r.ptsAbsolute)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-primary-600 dark:text-primary-400 text-xs">
+                    {formatNumber(r.ptsPerUnit)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right">
+                    <span className={`font-bold text-sm ${rank === 1 ? 'gradient-text' : 'text-gray-900 dark:text-gray-100'}`}>
+                      {formatNumber(r.ptsTotal)}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-800">
+        {results.map((r, i) => {
+          const rank = i + 1
+          return (
+            <div key={r.block.id} className={`p-3 ${rank === 1 ? 'bg-yellow-50/50 dark:bg-yellow-900/10' : ''}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${getRankBadgeClass(rank)}`}>
+                    {getRankLabel(rank)}
+                  </span>
+                  <div>
+                    <div className="font-medium text-sm">{r.block.name}</div>
+                    <div className="text-xs text-gray-400">{r.block.metric_type}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className={`text-xl font-bold ${rank === 1 ? 'gradient-text' : ''}`}>
+                    {formatNumber(r.ptsTotal)}
+                  </div>
+                  <div className="text-xs text-gray-400">điểm</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-1.5 text-center">
+                  <div className="text-gray-400 mb-0.5">Tuyệt đối</div>
+                  <div className={`font-semibold ${getPctColor(r.pctAbsolute)}`}>{r.hasData ? formatPct(r.pctAbsolute) : '—'}</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-1.5 text-center">
+                  <div className="text-gray-400 mb-0.5">/Đơn vị</div>
+                  <div className={`font-semibold ${getPctColor(r.pctPerUnit)}`}>{r.hasData ? formatPct(r.pctPerUnit) : '—'}</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-1.5 text-center">
+                  <div className="text-gray-400 mb-0.5">Điện</div>
+                  <div className="font-semibold">{r.hasData ? formatNumber(r.electricity, 0) : '—'}</div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
+// ─────────────────────────────────────────────────────────
+// SIDEBAR (ô 8)
+// ─────────────────────────────────────────────────────────
+function Sidebar({
+  open, setOpen,
+  activeGroup, setActiveGroup,
+  selectedWeek, availableWeeks, weekIdx, setSelectedWeek,
+}) {
+  const { dark, toggle } = useTheme()
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const handleSignOut = async () => {
+    await signOut()
+    navigate('/')
+  }
+
+  const navLinks = [
+    { to: '/', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
+    { to: '/violations', label: 'Vi phạm', icon: <AlertTriangle size={16} /> },
+  ]
+  const adminLinks = user ? [
+    { to: '/admin/data-entry', label: 'Nhập liệu', icon: <Database size={16} /> },
+    { to: '/admin/baseline', label: 'Baseline', icon: <TrendingUp size={16} /> },
+    { to: '/admin/slideshow', label: 'Slideshow', icon: <Monitor size={16} /> },
+    { to: '/admin/violation/create', label: 'Tạo vi phạm', icon: <PlusCircle size={16} /> },
+  ] : []
+
+  return (
+    <aside
+      className={`
+        hidden lg:flex flex-col flex-shrink-0
+        sticky top-14 h-[calc(100vh-56px)]
+        bg-white dark:bg-gray-900
+        border-r border-gray-200 dark:border-gray-800
+        transition-all duration-300 overflow-hidden
+        ${open ? 'w-56' : 'w-14'}
+      `}
+    >
+      {/* Toggle button */}
+      <div className={`flex items-center h-12 border-b border-gray-100 dark:border-gray-800 flex-shrink-0 ${open ? 'px-3 justify-between' : 'justify-center'}`}>
+        {open && (
+          <div className="flex items-center gap-2">
+            <svg width="22" height="16" viewBox="0 0 260 185" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+              <path d="M0 0 Q65 92 130 92 Q65 92 0 185 Z" fill="#d42b2b"/>
+              <path d="M260 0 Q195 92 130 92 Q195 92 260 185 Z" fill="#1b3a8c"/>
+            </svg>
+            <span className="text-xs font-bold gradient-text leading-tight">TINH LỢI<br/><span className="font-normal text-gray-400">Năng lượng</span></span>
+          </div>
+        )}
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">
+          {open ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+        </button>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 space-y-4">
+
+        {/* Group selector */}
+        <div className={`${open ? 'px-3' : 'px-2'}`}>
+          {open && <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Nhóm</div>}
+          <div className={`flex ${open ? 'flex-row gap-1' : 'flex-col gap-1 items-center'}`}>
+            {GROUPS.map(g => (
+              <button
+                key={g}
+                onClick={() => setActiveGroup(g)}
+                title={g}
+                className={`
+                  transition-all rounded-lg font-medium text-xs
+                  ${open ? 'flex-1 py-1.5 px-2' : 'w-9 h-9 flex items-center justify-center'}
+                  ${activeGroup === g
+                    ? 'gradient-bg text-white shadow-sm'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}
+                `}>
+                {open ? g : g.charAt(0)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Week selector */}
+        <div className={`${open ? 'px-3' : 'px-2'}`}>
+          {open && <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tuần</div>}
+          <div className="flex items-center justify-between gap-1">
+            <button
+              onClick={() => setSelectedWeek(availableWeeks[weekIdx + 1])}
+              disabled={weekIdx >= availableWeeks.length - 1}
+              className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors flex-shrink-0">
+              <ChevronLeft size={13} />
+            </button>
+            {open && selectedWeek && (
+              <div className="text-xs text-center font-medium text-gray-700 dark:text-gray-300 leading-tight min-w-0 px-1">
+                {format(new Date(selectedWeek), 'dd/MM', { locale: vi })}
+                <div className="text-gray-400 font-normal">
+                  — {format(new Date(new Date(selectedWeek).getTime() + 6 * 86400000), 'dd/MM', { locale: vi })}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => setSelectedWeek(availableWeeks[weekIdx - 1])}
+              disabled={weekIdx <= 0}
+              className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors flex-shrink-0">
+              <ChevronRight size={13} />
+            </button>
+          </div>
+          {/* Week pills (only when open) */}
+          {open && availableWeeks.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1">
+              {availableWeeks.slice(0, 6).map(w => (
+                <button
+                  key={w}
+                  onClick={() => setSelectedWeek(w)}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all ${
+                    selectedWeek === w
+                      ? 'gradient-bg text-white'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}>
+                  {format(new Date(w), 'dd/MM', { locale: vi })} – {format(new Date(new Date(w).getTime() + 6 * 86400000), 'dd/MM', { locale: vi })}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Nav links */}
+        <div className={`${open ? 'px-3' : 'px-2'}`}>
+          {open && <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Menu</div>}
+          <div className="flex flex-col gap-0.5">
+            {navLinks.map(l => (
+              <Link
+                key={l.to}
+                to={l.to}
+                title={!open ? l.label : undefined}
+                className={`flex items-center gap-2.5 rounded-lg transition-colors font-medium text-xs
+                  ${open ? 'px-2.5 py-2' : 'w-9 h-9 justify-center'}
+                  ${location.pathname === l.to
+                    ? 'gradient-bg text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                <span className="flex-shrink-0">{l.icon}</span>
+                {open && l.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Admin links */}
+        {user && adminLinks.length > 0 && (
+          <div className={`${open ? 'px-3' : 'px-2'}`}>
+            {open && <div className="text-xs font-semibold text-amber-500 uppercase tracking-wider mb-2">Admin</div>}
+            <div className="flex flex-col gap-0.5">
+              {adminLinks.map(l => (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  title={!open ? l.label : undefined}
+                  className={`flex items-center gap-2.5 rounded-lg transition-colors font-medium text-xs
+                    ${open ? 'px-2.5 py-2' : 'w-9 h-9 justify-center'}
+                    text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20`}>
+                  <span className="flex-shrink-0">{l.icon}</span>
+                  {open && l.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className={`border-t border-gray-100 dark:border-gray-800 py-2 flex-shrink-0 ${open ? 'px-3 flex items-center justify-between' : 'px-2 flex flex-col items-center gap-1'}`}>
+        <button
+          onClick={toggle}
+          title={dark ? 'Chế độ sáng' : 'Chế độ tối'}
+          className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          {dark ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
+        {user ? (
+          <button
+            onClick={handleSignOut}
+            title="Đăng xuất"
+            className={`flex items-center gap-1.5 p-2 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ${open ? '' : 'justify-center'}`}>
+            <LogOut size={14} />
+            {open && 'Đăng xuất'}
+          </button>
+        ) : (
+          <Link
+            to="/login"
+            title="Đăng nhập Admin"
+            className={`flex items-center gap-1.5 p-2 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${open ? '' : 'justify-center'}`}>
+            <LogIn size={14} />
+            {open && 'Admin'}
+          </Link>
+        )}
+      </div>
+    </aside>
+  )
+}
+
+// ─────────────────────────────────────────────────────────
+// MAIN DASHBOARD
+// ─────────────────────────────────────────────────────────
 export default function Dashboard() {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeGroup, setActiveGroup] = useState('Sweater')
   const [groups, setGroups] = useState([])
   const [blocks, setBlocks] = useState([])
@@ -48,6 +620,8 @@ export default function Dashboard() {
   const [selectedWeek, setSelectedWeek] = useState(null)
   const [loading, setLoading] = useState(true)
   const [violationCount, setViolationCount] = useState(0)
+  const [violationSlides, setViolationSlides] = useState([])
+  const [blocksMap, setBlocksMap] = useState({})
 
   useEffect(() => {
     Promise.all([
@@ -56,14 +630,35 @@ export default function Dashboard() {
       supabase.from('weekly_data').select('*').order('week_start', { ascending: false }),
       supabase.from('baselines').select('*').order('valid_from', { ascending: false }),
       supabase.from('violations').select('id', { count: 'exact' }).eq('status', 'open'),
-    ]).then(([g, b, wd, bl, v]) => {
+      supabase
+        .from('violation_images')
+        .select('*, violations(block_id, description, reported_at)')
+        .order('id', { ascending: false })
+        .limit(40),
+    ]).then(([g, b, wd, bl, v, imgs]) => {
       setGroups(g.data || [])
       setBlocks(b.data || [])
       setWeeklyData(wd.data || [])
       setBaselines(bl.data || [])
       setViolationCount(v.count || 0)
 
-      // Build available weeks
+      // Build blocks map
+      const bmap = {}
+      ;(b.data || []).forEach(block => { bmap[block.id] = block })
+      setBlocksMap(bmap)
+
+      // Build violation slides
+      const slides = (imgs.data || [])
+        .filter(img => img.image_url && img.violations)
+        .map(img => ({
+          imageUrl: img.image_url,
+          blockName: bmap[img.violations.block_id]?.name || null,
+          description: img.violations.description,
+          reportedAt: img.violations.reported_at,
+        }))
+      setViolationSlides(slides)
+
+      // Available weeks
       const weekSet = new Set((wd.data || []).map(d => d.week_start))
       const weeks = [...weekSet].sort((a, b) => b.localeCompare(a))
       setAvailableWeeks(weeks)
@@ -72,20 +667,14 @@ export default function Dashboard() {
     })
   }, [])
 
-  const currentGroup = useMemo(() => groups.find(g => g.name === activeGroup), [groups, activeGroup])
-  const currentBlocks = useMemo(() =>
-    blocks.filter(b => b.group_id === currentGroup?.id),
-    [blocks, currentGroup]
-  )
-
-  // Get active baseline for a block at a given week
-  const getBaseline = (blockId, weekStart) => {
-    return baselines
+  const getBaseline = (blockId, weekStart) =>
+    baselines
       .filter(bl => bl.block_id === blockId && bl.valid_from <= weekStart)
       .sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0]
-  }
 
-  // Compute results for selected week
+  const currentGroup = useMemo(() => groups.find(g => g.name === activeGroup), [groups, activeGroup])
+  const currentBlocks = useMemo(() => blocks.filter(b => b.group_id === currentGroup?.id), [blocks, currentGroup])
+
   const weekResults = useMemo(() => {
     if (!selectedWeek || !currentBlocks.length) return []
     return currentBlocks.map(block => {
@@ -100,125 +689,156 @@ export default function Dashboard() {
 
   const scoredResults = useMemo(() => calculateGroupScores(weekResults), [weekResults])
 
-  // Trend data: last 8 weeks
-  const trendData = useMemo(() => {
-    const weeks = availableWeeks.slice(0, 8).reverse()
-    return weeks.map(ws => {
-      const blockData = {}
-      currentBlocks.forEach(block => {
-        const wd = weeklyData.find(d => d.block_id === block.id && d.week_start === ws)
-        const bl = getBaseline(block.id, ws)
-        if (!wd || !bl) { blockData[block.id] = null; return }
-        const pctAbsolute = calcPctAbsolute(wd.electricity, wd.week_start, wd.week_end, bl.avg_electricity)
-        const pctPerUnit = calcPctPerUnit(wd.elec_per_unit, bl.avg_elec_per_unit)
-        const results = calculateGroupScores(currentBlocks.map(b => {
-          const bwd = weeklyData.find(d => d.block_id === b.id && d.week_start === ws)
-          const bbl = getBaseline(b.id, ws)
-          if (!bwd || !bbl) return { block: b, hasData: false, pctAbsolute: 0, pctPerUnit: 0 }
-          return {
-            block: b, hasData: true,
-            pctAbsolute: calcPctAbsolute(bwd.electricity, bwd.week_start, bwd.week_end, bbl.avg_electricity),
-            pctPerUnit: calcPctPerUnit(bwd.elec_per_unit, bbl.avg_elec_per_unit),
-          }
-        }))
-        const r = results.find(r => r.block.id === block.id)
-        blockData[block.id] = { ptsTotal: r?.ptsTotal ?? 0 }
-      })
-      return { week_start: ws, blockData }
-    })
-  }, [availableWeeks, currentBlocks, weeklyData, baselines])
-
-  // Summary stats
   const totalElec = scoredResults.filter(r => r.hasData).reduce((s, r) => s + r.electricity, 0)
-  const avgPctPerUnit = scoredResults.filter(r => r.hasData && r.pctPerUnit > 0).reduce((s, r, _, a) => s + r.pctPerUnit / a.length, 0)
+  const avgPctPerUnit = (() => {
+    const valid = scoredResults.filter(r => r.hasData && r.pctPerUnit !== 0)
+    if (!valid.length) return 0
+    return valid.reduce((s, r) => s + r.pctPerUnit, 0) / valid.length
+  })()
   const leader = scoredResults[0]
   const weekIdx = availableWeeks.indexOf(selectedWeek)
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-[60vh] flex items-center justify-center">
       <div className="text-center">
-        <div className="w-12 h-12 gradient-bg rounded-full animate-spin mx-auto mb-3" style={{ animationDuration: '1s', borderTopColor: 'transparent' }} />
-        <p className="text-gray-400">Đang tải dữ liệu...</p>
+        <div className="w-10 h-10 gradient-bg rounded-full animate-spin mx-auto mb-3" style={{ borderTopColor: 'transparent' }} />
+        <p className="text-sm text-gray-400">Đang tải dữ liệu...</p>
       </div>
     </div>
   )
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5 animate-slide-up">
+    <div className="flex min-h-[calc(100vh-56px)] bg-gray-50 dark:bg-gray-950">
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Dashboard <span className="gradient-text">Tiết Kiệm Năng Lượng</span>
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            Chương trình thi đua tiết kiệm điện 2026 — Nhà máy Tinh Lợi
-          </p>
+      {/* ── Sidebar ── */}
+      <Sidebar
+        open={sidebarOpen}
+        setOpen={setSidebarOpen}
+        activeGroup={activeGroup}
+        setActiveGroup={setActiveGroup}
+        selectedWeek={selectedWeek}
+        availableWeeks={availableWeeks}
+        weekIdx={weekIdx}
+        setSelectedWeek={setSelectedWeek}
+      />
+
+      {/* ── Main content ── */}
+      <div className="flex-1 min-w-0 p-4 lg:p-5">
+
+        {/* ── Mobile controls ── */}
+        <div className="lg:hidden mb-4 space-y-3">
+          <div>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+              Dashboard <span className="gradient-text">TKNL</span>
+            </h1>
+            {selectedWeek && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                Tuần: {getWeekLabel(new Date(selectedWeek))}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-2 items-center flex-wrap">
+            <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+              {GROUPS.map(g => (
+                <button key={g} onClick={() => setActiveGroup(g)}
+                  className={`px-4 py-1.5 text-sm font-semibold transition-all ${
+                    activeGroup === g ? 'gradient-bg text-white' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300'
+                  }`}>
+                  {g}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setSelectedWeek(availableWeeks[weekIdx + 1])} disabled={weekIdx >= availableWeeks.length - 1}
+                className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30">
+                <ChevronLeft size={14} />
+              </button>
+              <button onClick={() => setSelectedWeek(availableWeeks[weekIdx - 1])} disabled={weekIdx <= 0}
+                className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30">
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Group Toggle */}
-        <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 self-start">
-          {GROUPS.map(g => (
-            <button key={g} onClick={() => setActiveGroup(g)}
-              className={`px-5 py-2 text-sm font-semibold transition-all
-                ${activeGroup === g
-                  ? 'gradient-bg text-white shadow-inner'
-                  : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
-              {g}
-            </button>
-          ))}
+        {/* ── Desktop page header ── */}
+        <div className="hidden lg:flex items-center justify-between mb-5">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              Dashboard — Nhóm <span className="gradient-text">{activeGroup}</span>
+            </h1>
+            {selectedWeek && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Tuần {getWeekLabel(new Date(selectedWeek))} · Nhà máy Tinh Lợi
+              </p>
+            )}
+          </div>
+          {selectedWeek && (
+            <span className="text-xs px-3 py-1 rounded-full gradient-bg text-white font-medium shadow-sm">
+              {format(new Date(selectedWeek), 'dd/MM', { locale: vi })} – {format(new Date(new Date(selectedWeek).getTime() + 6 * 86400000), 'dd/MM/yyyy', { locale: vi })}
+            </span>
+          )}
+        </div>
+
+        {/* ── Main grid ── */}
+        <div className="flex gap-4 flex-col lg:flex-row">
+
+          {/* Left column: stat cards + ranking */}
+          <div className="flex-1 min-w-0 flex flex-col gap-4">
+
+            {/* 2×2 Stat cards */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              {/* ô 1 - Tổng điện (highlighted) */}
+              <StatCard
+                highlight
+                icon={<Zap size={18} className="text-white" />}
+                label="Tổng điện tiêu thụ"
+                value={totalElec > 0 ? `${(totalElec / 1000).toFixed(0)}K kWh` : '— kWh'}
+                sub="tuần này"
+                badgeText={scoredResults.filter(r => r.hasData).length > 0 ? `${scoredResults.filter(r => r.hasData).length} KV` : undefined}
+              />
+              {/* ô 2 - TB giảm/đơn vị */}
+              <StatCard
+                icon={<TrendingDown size={18} className={avgPctPerUnit >= 0 ? 'text-emerald-500' : 'text-red-500'} />}
+                label="TB giảm/đơn vị"
+                value={`${avgPctPerUnit >= 0 ? '+' : ''}${avgPctPerUnit.toFixed(1)}%`}
+                sub="so với baseline"
+                badgeText={avgPctPerUnit >= 0 ? '↓ Tốt' : '↑ Tăng'}
+                badgeColor={avgPctPerUnit >= 0 ? 'green' : 'red'}
+              />
+              {/* ô 4 - Vi phạm */}
+              <StatCard
+                icon={<AlertTriangle size={18} className={violationCount > 0 ? 'text-red-500' : 'text-emerald-500'} />}
+                label="Vi phạm chưa xử lý"
+                value={violationCount}
+                sub="hiện trường"
+                badgeText={violationCount === 0 ? 'Tốt' : 'Cần xử lý'}
+                badgeColor={violationCount === 0 ? 'green' : 'red'}
+              />
+              {/* ô 3 - Dẫn đầu */}
+              <StatCard
+                icon={<Award size={18} className="text-amber-500" />}
+                label="Dẫn đầu nhóm"
+                value={leader?.hasData ? leader.block.name : '—'}
+                sub={leader?.hasData ? `${leader.ptsTotal.toFixed(1)} điểm` : 'Chưa có dữ liệu'}
+                badgeText={leader?.hasData ? '🥇' : undefined}
+              />
+            </div>
+
+            {/* ô 5 - Ranking table */}
+            <CompactRankingTable results={scoredResults} groupName={activeGroup} />
+          </div>
+
+          {/* Right column: slideshow + bar chart */}
+          <div className="lg:w-80 xl:w-96 flex flex-col gap-4 flex-shrink-0">
+            {/* ô 7 - Violation slideshow */}
+            <ViolationSlideshow slides={violationSlides} />
+
+            {/* ô 6 - Bar chart */}
+            <ElecBarChart results={scoredResults} />
+          </div>
         </div>
       </div>
-
-      {/* Week selector */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <button onClick={() => setSelectedWeek(availableWeeks[weekIdx + 1])}
-          disabled={weekIdx >= availableWeeks.length - 1}
-          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors">
-          <ChevronLeft size={16} />
-        </button>
-        <div className="flex gap-2 flex-wrap">
-          {availableWeeks.slice(0, 8).map(w => (
-            <button key={w} onClick={() => setSelectedWeek(w)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border
-                ${selectedWeek === w
-                  ? 'gradient-bg text-white border-transparent shadow-sm'
-                  : 'border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
-              {format(new Date(w), 'dd/MM', { locale: vi })}
-            </button>
-          ))}
-        </div>
-        <button onClick={() => setSelectedWeek(availableWeeks[weekIdx - 1])}
-          disabled={weekIdx <= 0}
-          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors">
-          <ChevronRight size={16} />
-        </button>
-        {selectedWeek && (
-          <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
-            Tuần: {getWeekLabel(new Date(selectedWeek))}
-          </span>
-        )}
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard icon={<Zap size={20} />} label="Tổng điện tiêu thụ" value={`${(totalElec/1000).toFixed(0)}K kWh`} sub="tuần này" color="cyan" />
-        <StatCard icon={<TrendingDown size={20} />} label="TB giảm/đơn vị" value={`${avgPctPerUnit.toFixed(1)}%`} sub="so với baseline" color="emerald" />
-        <StatCard icon={<Award size={20} />} label="Dẫn đầu nhóm" value={leader?.hasData ? leader.block.name : '—'} sub={leader?.hasData ? `${leader.ptsTotal.toFixed(1)} điểm` : 'Chưa có dữ liệu'} color="amber" />
-        <StatCard icon={<AlertTriangle size={20} />} label="Vi phạm chưa xử lý" value={violationCount} sub="hiện trường" color="rose" />
-      </div>
-
-      {/* Slideshow */}
-      <FindingSlideshow />
-
-      {/* Ranking Table */}
-      <RankingTable results={scoredResults} groupName={activeGroup} />
-
-      {/* Trend chart */}
-      {trendData.length > 0 && (
-        <TrendChart data={trendData} blocks={currentBlocks} />
-      )}
     </div>
   )
 }
