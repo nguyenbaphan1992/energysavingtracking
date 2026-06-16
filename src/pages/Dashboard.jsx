@@ -447,10 +447,7 @@ function Sidebar({
       <div className={`flex items-center h-12 border-b border-gray-100 dark:border-gray-800 flex-shrink-0 ${open ? 'px-3 justify-between' : 'justify-center'}`}>
         {open && (
           <div className="flex items-center gap-2">
-            <svg width="22" height="16" viewBox="0 0 260 185" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-              <path d="M0 0 Q65 92 130 92 Q65 92 0 185 Z" fill="#d42b2b"/>
-              <path d="M260 0 Q195 92 130 92 Q195 92 260 185 Z" fill="#1b3a8c"/>
-            </svg>
+            <img src="/logo.png" alt="Tinh Lợi" className="h-7 w-auto object-contain flex-shrink-0" />
             <span className="text-xs font-bold gradient-text leading-tight">TINH LỢI<br/><span className="font-normal text-gray-400">Năng lượng</span></span>
           </div>
         )}
