@@ -436,9 +436,9 @@ function Sidebar({
     <aside
       className={`
         hidden lg:flex flex-col flex-shrink-0
-        sticky top-14 h-[calc(100vh-56px)]
-        bg-white dark:bg-gray-900
-        border-r border-gray-200 dark:border-gray-800
+        sticky top-0 h-[calc(100vh-56px-34px)]
+        bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm
+        border-r border-gray-200/60 dark:border-gray-800/60
         transition-all duration-300 overflow-hidden
         ${open ? 'w-56' : 'w-14'}
       `}
@@ -704,8 +704,61 @@ export default function Dashboard() {
     </div>
   )
 
+  const MARQUEE_TEXT = [
+    '🏆 Cuộc thi "TIẾT KIỆM ĐIỆN"',
+    '⚡ Lan tỏa văn hóa tiết kiệm',
+    '🌟 Cùng nhau tiết kiệm — Cùng nhau thắng lợi',
+    '🥇 Giải Nhất: 3.000.000 VNĐ',
+    '🥈 Giải Nhì: 2.000.000 VNĐ',
+    '🥉 Giải Ba: 1.000.000 VNĐ',
+    '💡 Tắt điện khi không sử dụng',
+    '🌱 Mỗi kWh tiết kiệm — Một bước đến chiến thắng',
+  ].join('   ·   ')
+
   return (
-    <div className="flex min-h-[calc(100vh-56px)] bg-gray-50 dark:bg-gray-950">
+    <div className="relative min-h-[calc(100vh-56px)]">
+
+      {/* ── Banner nền ── */}
+      <div
+        className="fixed pointer-events-none"
+        style={{ inset: 0, top: '56px', zIndex: 0 }}
+      >
+        {/* Ảnh banner mờ */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: "url('/banner.jpg')",
+            filter: 'blur(3px)',
+            transform: 'scale(1.06)',
+            opacity: 0.28,
+          }}
+        />
+        {/* Lớp phủ giữ màu nền */}
+        <div className="absolute inset-0 bg-gray-50/82 dark:bg-gray-950/85" />
+      </div>
+
+      {/* ── Marquee ticker ── */}
+      <div
+        className="relative overflow-hidden flex items-center"
+        style={{
+          zIndex: 20,
+          height: '34px',
+          background: 'linear-gradient(90deg, #d42b2b 0%, #8b1f6b 35%, #1b3a8c 70%, #d42b2b 100%)',
+        }}
+      >
+        {/* 2 bản sao để vòng lặp mượt */}
+        <div className="flex items-center animate-marquee">
+          <span className="whitespace-nowrap text-xs sm:text-sm font-semibold text-white tracking-wide pr-20">
+            {MARQUEE_TEXT}
+          </span>
+          <span className="whitespace-nowrap text-xs sm:text-sm font-semibold text-white tracking-wide pr-20" aria-hidden>
+            {MARQUEE_TEXT}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Sidebar + Main (trên nền) ── */}
+      <div className="relative flex" style={{ zIndex: 10, minHeight: 'calc(100vh - 56px - 34px)' }}>
 
       {/* ── Sidebar ── */}
       <Sidebar
@@ -836,6 +889,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+      </div> {/* end .relative.flex sidebar+main */}
     </div>
   )
 }
