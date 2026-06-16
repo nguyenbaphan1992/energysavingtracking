@@ -5,22 +5,34 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: {
-          50:  '#f0fdf9',
-          100: '#ccfbef',
-          200: '#99f5de',
-          300: '#5eebca',
-          400: '#2dd4b0',
-          500: '#14b896',
-          600: '#0d9278',
-          700: '#0f7562',
-          800: '#115d4e',
-          900: '#124d42',
+        primary: {
+          50:  '#fdf2f2',
+          100: '#fde2e2',
+          200: '#fbc9c9',
+          300: '#f8a0a0',
+          400: '#f26868',
+          500: '#e83a3a',
+          600: '#d42b2b',
+          700: '#b21f1f',
+          800: '#931e1e',
+          900: '#7a1f1f',
+        },
+        secondary: {
+          50:  '#eff3fb',
+          100: '#dce6f5',
+          200: '#b9cded',
+          300: '#8aaade',
+          400: '#5b86cc',
+          500: '#3a66bb',
+          600: '#2a4fa3',
+          700: '#1b3a8c',
+          800: '#192f72',
+          900: '#17285e',
         },
       },
       backgroundImage: {
-        'gradient-brand': 'linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)',
-        'gradient-brand-dark': 'linear-gradient(135deg, #059669 0%, #0284c7 100%)',
+        'gradient-brand': 'linear-gradient(135deg, #d42b2b 0%, #1b3a8c 100%)',
+        'gradient-brand-dark': 'linear-gradient(135deg, #b21f1f 0%, #17285e 100%)',
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-in-out',

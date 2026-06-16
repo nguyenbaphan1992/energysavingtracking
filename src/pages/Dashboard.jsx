@@ -12,8 +12,8 @@ const GROUPS = ['Sweater', 'Lifestyle']
 
 function StatCard({ icon, label, value, sub, color = 'emerald' }) {
   const colorMap = {
-    emerald: 'from-emerald-500 to-teal-600',
-    cyan: 'from-cyan-500 to-blue-600',
+    emerald: 'from-primary-500 to-primary-700',
+    cyan: 'from-secondary-500 to-secondary-700',
     amber: 'from-amber-400 to-orange-500',
     rose: 'from-rose-500 to-red-600',
   }

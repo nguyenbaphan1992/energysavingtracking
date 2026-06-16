@@ -3,7 +3,7 @@ import { formatNumber, formatPct, getPctColor, getRankLabel, getRankBadgeClass }
 
 function TrendIcon({ val }) {
   if (!val || Math.abs(val) < 0.05) return <Minus size={14} className="text-gray-400" />
-  if (val > 0) return <TrendingDown size={14} className="text-emerald-500" />
+  if (val > 0) return <TrendingDown size={14} className="text-primary-500" />
   return <TrendingUp size={14} className="text-red-500" />
 }
 
@@ -65,10 +65,10 @@ export default function RankingTable({ results, groupName }) {
                   <td className={`px-4 py-3 text-right font-medium ${getPctColor(r.pctPerUnit)}`}>
                     {r.hasData ? formatPct(r.pctPerUnit) : '—'}
                   </td>
-                  <td className="px-4 py-3 text-right text-cyan-600 dark:text-cyan-400">
+                  <td className="px-4 py-3 text-right text-secondary-600 dark:text-secondary-400">
                     {formatNumber(r.ptsAbsolute)}
                   </td>
-                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">
+                  <td className="px-4 py-3 text-right text-primary-600 dark:text-primary-400">
                     {formatNumber(r.ptsPerUnit)}
                   </td>
                   <td className="px-4 py-3 text-right">

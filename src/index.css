@@ -12,8 +12,8 @@
 @layer components {
   .btn-primary {
     @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white
-           bg-gradient-to-r from-emerald-500 to-cyan-600
-           hover:from-emerald-600 hover:to-cyan-700
+           bg-gradient-to-r from-primary-600 to-secondary-700
+           hover:from-primary-700 hover:to-secondary-800
            active:scale-95 transition-all duration-200 shadow-md;
   }
   .btn-secondary {
@@ -25,7 +25,7 @@
   }
   .btn-danger {
     @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-white
-           bg-red-500 hover:bg-red-600 active:scale-95 transition-all duration-200;
+           bg-primary-600 hover:bg-primary-700 active:scale-95 transition-all duration-200;
   }
   .card {
     @apply bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5;
@@ -33,28 +33,28 @@
   .input {
     @apply w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600
            bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
-           focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400
+           focus:outline-none focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400
            transition-colors duration-200;
   }
   .label {
     @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
   }
   .gradient-text {
-    @apply bg-gradient-to-r from-emerald-500 to-cyan-500 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-primary-600 to-secondary-700 bg-clip-text text-transparent;
   }
   .gradient-bg {
-    @apply bg-gradient-to-r from-emerald-500 to-cyan-600;
+    @apply bg-gradient-to-r from-primary-600 to-secondary-700;
   }
   .badge-rank-1 { @apply bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-700; }
   .badge-rank-2 { @apply bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500; }
   .badge-rank-3 { @apply bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-700; }
-  .badge-rank-other { @apply bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700; }
+  .badge-rank-other { @apply bg-secondary-50 dark:bg-secondary-900/20 text-secondary-700 dark:text-secondary-300 border border-secondary-200 dark:border-secondary-700; }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { @apply bg-gray-100 dark:bg-gray-800; }
-::-webkit-scrollbar-thumb { @apply bg-emerald-400 dark:bg-emerald-600 rounded-full; }
+::-webkit-scrollbar-thumb { @apply bg-primary-500 dark:bg-primary-700 rounded-full; }
 
 /* Slideshow animation */
 .slide-enter { animation: slideIn 0.5s ease-out; }

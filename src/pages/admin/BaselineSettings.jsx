@@ -173,7 +173,7 @@ export default function BaselineSettings() {
                         onChange={ev => handleChange(block.id, 'avg_sah_pcs', ev.target.value)}
                         className="input py-1.5 text-sm w-36" />
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-sm text-cyan-600 dark:text-cyan-400">{ratio}</td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-secondary-600 dark:text-secondary-400">{ratio}</td>
                     <td className="px-4 py-3">
                       <input type="text" value={e.note || ''}
                         onChange={ev => handleChange(block.id, 'note', ev.target.value)}

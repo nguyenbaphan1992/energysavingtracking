@@ -38,12 +38,19 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 font-bold text-lg">
-            <span className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
-              <Zap size={18} className="text-white" />
-            </span>
-            <span className="gradient-text hidden sm:block">Tiết Kiệm Năng Lượng</span>
-            <span className="gradient-text sm:hidden">TKNL</span>
+          <Link to="/" className="flex items-center gap-2.5 font-bold text-lg">
+            {/* Company logo SVG */}
+            <svg width="36" height="26" viewBox="0 0 260 185" xmlns="http://www.w3.org/2000/svg">
+              <path d="M0 0 Q65 92 130 92 Q65 92 0 185 Z" fill="#d42b2b"/>
+              <path d="M260 0 Q195 92 130 92 Q195 92 260 185 Z" fill="#1b3a8c"/>
+              <ellipse cx="130" cy="92" rx="48" ry="26" fill="none" stroke="#1b3a8c" strokeWidth="10"/>
+              <ellipse cx="130" cy="92" rx="28" ry="14" fill="none" stroke="#d42b2b" strokeWidth="8"/>
+            </svg>
+            <div className="hidden sm:block">
+              <div className="gradient-text font-bold leading-tight text-sm">TINH LỢI</div>
+              <div className="text-gray-500 dark:text-gray-400 text-xs font-medium leading-tight">Tiết Kiệm Năng Lượng</div>
+            </div>
+            <span className="gradient-text sm:hidden text-sm font-bold">TKNL</span>
           </Link>
 
           {/* Desktop Nav */}

@@ -175,7 +175,7 @@ export default function DataEntry() {
                         placeholder={`Nhập ${block.metric_type}...`}
                         className="input py-1.5 text-sm w-40" />
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-sm text-cyan-600 dark:text-cyan-400">
+                    <td className="px-4 py-3 text-right font-mono text-sm text-secondary-600 dark:text-secondary-400">
                       {ratio}
                     </td>
                   </tr>
