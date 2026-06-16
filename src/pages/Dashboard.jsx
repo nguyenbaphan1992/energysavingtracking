@@ -306,17 +306,17 @@ function CompactRankingTable({ results, groupName }) {
             <tr className="bg-gray-50 dark:bg-gray-800/50 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
               <th className="px-3 py-2.5 text-left w-10">Hạng</th>
               <th className="px-3 py-2.5 text-left">Khu vực</th>
-              <th className="px-3 py-2.5 text-right">Điện (kWh)</th>
+              <th className="px-3 py-2.5 text-right">Điện/SAH·Pcs (kWh)</th>
+              <th className="px-3 py-2.5 text-right">TB ngày (kWh)</th>
               <th className="px-3 py-2.5 text-right">% Tuyệt đối</th>
               <th className="px-3 py-2.5 text-right">% /Đơn vị</th>
-              <th className="px-3 py-2.5 text-right text-secondary-600 dark:text-secondary-400">Đ. tuyệt đối</th>
-              <th className="px-3 py-2.5 text-right text-primary-600 dark:text-primary-400">Đ. /đơn vị</th>
-              <th className="px-3 py-2.5 text-right font-bold">Tổng</th>
+              <th className="px-3 py-2.5 text-right font-bold">Tổng điểm</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {results.map((r, i) => {
               const rank = i + 1
+              const tbNgay = r.hasData && r.electricity ? r.electricity / 7 : null
               return (
                 <tr
                   key={r.block.id}
@@ -334,20 +334,17 @@ function CompactRankingTable({ results, groupName }) {
                     {r.block.name}
                     <span className="ml-1 text-gray-400 font-normal">({r.block.metric_type})</span>
                   </td>
-                  <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300 text-xs">
-                    {r.hasData ? formatNumber(r.electricity, 0) : '—'}
+                  <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300 text-xs font-mono">
+                    {r.hasData && r.elec_per_unit ? formatNumber(r.elec_per_unit, 3) : '—'}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300 text-xs font-mono">
+                    {tbNgay ? formatNumber(tbNgay, 1) : '—'}
                   </td>
                   <td className={`px-3 py-2.5 text-right font-medium text-xs ${getPctColor(r.pctAbsolute)}`}>
                     {r.hasData ? formatPct(r.pctAbsolute) : '—'}
                   </td>
                   <td className={`px-3 py-2.5 text-right font-medium text-xs ${getPctColor(r.pctPerUnit)}`}>
                     {r.hasData ? formatPct(r.pctPerUnit) : '—'}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-secondary-600 dark:text-secondary-400 text-xs">
-                    {formatNumber(r.ptsAbsolute)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-primary-600 dark:text-primary-400 text-xs">
-                    {formatNumber(r.ptsPerUnit)}
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <span className={`font-bold text-sm ${rank === 1 ? 'gradient-text' : 'text-gray-900 dark:text-gray-100'}`}>
