@@ -5,7 +5,7 @@ import {
   calcPctAbsolute, calcPctPerUnit, calculateGroupScores,
   formatNumber, formatPct, getPctColor, getRankBadgeClass, getRankLabel,
 } from '../utils/scoring'
-import { format, startOfWeek, endOfWeek } from 'date-fns'
+import { format, startOfWeek, endOfWeek, differenceInDays } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -316,7 +316,7 @@ function CompactRankingTable({ results, groupName }) {
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {results.map((r, i) => {
               const rank = i + 1
-              const tbNgay = r.hasData && r.electricity ? r.electricity / 7 : null
+              const tbNgay = r.hasData && r.electricity ? r.electricity / (r.days || 7) : null
               return (
                 <tr
                   key={r.block.id}
@@ -674,10 +674,11 @@ export default function Dashboard() {
     return currentBlocks.map(block => {
       const wd = weeklyData.find(d => d.block_id === block.id && d.week_start === selectedWeek)
       const bl = getBaseline(block.id, selectedWeek)
-      if (!wd || !bl) return { block, hasData: false, pctAbsolute: 0, pctPerUnit: 0, electricity: 0, elec_per_unit: 0 }
+      if (!wd || !bl) return { block, hasData: false, pctAbsolute: 0, pctPerUnit: 0, electricity: 0, elec_per_unit: 0, days: 7 }
+      const days = differenceInDays(new Date(wd.week_end), new Date(wd.week_start)) + 1
       const pctAbsolute = calcPctAbsolute(wd.electricity, wd.week_start, wd.week_end, bl.avg_electricity)
       const pctPerUnit = calcPctPerUnit(wd.elec_per_unit, bl.avg_elec_per_unit)
-      return { block, hasData: true, electricity: wd.electricity, elec_per_unit: wd.elec_per_unit, pctAbsolute, pctPerUnit }
+      return { block, hasData: true, electricity: wd.electricity, elec_per_unit: wd.elec_per_unit, pctAbsolute, pctPerUnit, days }
     })
   }, [selectedWeek, currentBlocks, weeklyData, baselines])
 
