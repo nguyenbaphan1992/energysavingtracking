@@ -9,7 +9,7 @@ import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ResponsiveContainer, Cell,
+  ReferenceLine, ReferenceArea, ResponsiveContainer, Cell,
 } from 'recharts'
 import {
   Zap, TrendingDown, Award, AlertTriangle, ChevronLeft, ChevronRight,
@@ -147,6 +147,10 @@ function ElecBarChart({ results }) {
       }
     })
 
+  const allVals = data.map(d => d.value)
+  const yMax = Math.max(...allVals, 3)
+  const yMin = Math.min(...allVals, -2)
+
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null
     const d = payload[0].payload
@@ -205,7 +209,11 @@ function ElecBarChart({ results }) {
             />
             <YAxis tick={{ fontSize: 9, fill: '#6b7280' }} unit="%" />
             <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine y={0} stroke="#6b7280" strokeWidth={1.5} />
+            {/* Vùng nền xanh = giảm tốt, đỏ = tăng điện */}
+            <ReferenceArea y1={0} y2={yMax} fill="#16a34a" fillOpacity={0.06} ifOverflow="extendDomain" />
+            <ReferenceArea y1={yMin} y2={0} fill="#ef4444" fillOpacity={0.06} ifOverflow="extendDomain" />
+            <ReferenceLine y={0} stroke="#6b7280" strokeWidth={1.5}
+              label={{ value: 'Baseline', position: 'insideTopLeft', fontSize: 8, fill: '#9ca3af', dy: -2 }} />
             <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={32}>
               {data.map((d, i) => (
                 <Cell
@@ -226,9 +234,33 @@ function ElecBarChart({ results }) {
 }
 
 // ─────────────────────────────────────────────────────────
+// SPARKLINE
+// ─────────────────────────────────────────────────────────
+function Sparkline({ data, color = '#16a34a' }) {
+  if (!data || data.length < 2) return null
+  const W = 76, H = 28
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min || 1
+  const coords = data.map((v, i) => ({
+    x: (i / (data.length - 1)) * W,
+    y: H - 4 - ((v - min) / range) * (H - 8),
+  }))
+  const points = coords.map(c => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ')
+  const last = coords[coords.length - 1]
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="opacity-75 flex-shrink-0">
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5"
+        strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={last.x} cy={last.y} r="2.5" fill={color} />
+    </svg>
+  )
+}
+
+// ─────────────────────────────────────────────────────────
 // STAT CARD
 // ─────────────────────────────────────────────────────────
-function StatCard({ icon, label, value, sub, highlight = false, badgeText, badgeColor = 'green' }) {
+function StatCard({ icon, label, value, sub, highlight = false, badgeText, badgeColor = 'green', sparkline, sparklineColor }) {
   if (highlight) {
     return (
       <div className="rounded-2xl gradient-bg p-5 shadow-lg text-white relative overflow-hidden">
@@ -239,7 +271,8 @@ function StatCard({ icon, label, value, sub, highlight = false, badgeText, badge
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
               {icon}
             </div>
-            {badgeText && (
+            {sparkline && <Sparkline data={sparkline} color="rgba(255,255,255,0.7)" />}
+            {badgeText && !sparkline && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">
                 {badgeText}
               </span>
@@ -258,17 +291,20 @@ function StatCard({ icon, label, value, sub, highlight = false, badgeText, badge
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-1">
+        <div className="flex items-start justify-between gap-2">
           <div className="text-xs text-gray-400 font-medium uppercase tracking-wide leading-tight">{label}</div>
-          {badgeText && (
-            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
-              badgeColor === 'green'
-                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-            }`}>
-              {badgeText}
-            </span>
-          )}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {badgeText && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                badgeColor === 'green'
+                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+              }`}>
+                {badgeText}
+              </span>
+            )}
+            {sparkline && <Sparkline data={sparkline} color={sparklineColor || '#16a34a'} />}
+          </div>
         </div>
         <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1 truncate">{value}</div>
         {sub && <div className="text-xs text-gray-400 mt-0.5 truncate">{sub}</div>}
@@ -323,7 +359,9 @@ function CompactRankingTable({ results, groupName, showScore = true }) {
                   className={`transition-colors ${
                     rank === 1
                       ? 'bg-yellow-50/60 dark:bg-yellow-900/10'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'
+                      : r.hasData && r.pctAbsolute < 0
+                        ? 'bg-red-50/60 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/15'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'
                   }`}>
                   <td className="px-3 py-2.5">
                     <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${getRankBadgeClass(rank)}`}>
@@ -331,8 +369,13 @@ function CompactRankingTable({ results, groupName, showScore = true }) {
                     </span>
                   </td>
                   <td className="px-3 py-2.5 font-medium text-gray-900 dark:text-gray-100 text-xs">
-                    {r.block.name}
-                    <span className="ml-1 text-gray-400 font-normal">({r.block.metric_type})</span>
+                    <div className="flex items-center gap-1">
+                      {r.hasData && r.pctAbsolute < 0 && (
+                        <span className="text-red-500" title="Điện tăng so với baseline">⚠</span>
+                      )}
+                      <span>{r.block.name}</span>
+                      <span className="text-gray-400 font-normal">({r.block.metric_type})</span>
+                    </div>
                   </td>
                   <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300 text-xs font-mono">
                     {r.hasData && r.elec_per_unit ? formatNumber(r.elec_per_unit, 3) : '—'}
@@ -827,6 +870,34 @@ export default function Dashboard() {
   const monthIdx = availableMonths.indexOf(selectedMonth)
   const weekIdx = availableWeeks.indexOf(selectedWeek)
 
+  // Sparkline: tổng điện 6 tuần gần nhất (cũ → mới)
+  const sparklineElec = useMemo(() => {
+    const weeks = availableWeeks.slice(0, 6).reverse()
+    return weeks.map(w =>
+      currentBlocks.reduce((s, block) => {
+        const wd = weeklyData.find(d => d.block_id === block.id && d.week_start === w)
+        return s + (wd?.electricity || 0)
+      }, 0)
+    ).filter(v => v > 0)
+  }, [availableWeeks, currentBlocks, weeklyData])
+
+  // Sparkline: % giảm TB 6 tuần gần nhất
+  const sparklinePct = useMemo(() => {
+    const weeks = availableWeeks.slice(0, 6).reverse()
+    return weeks.map(w => {
+      const vals = currentBlocks.map(block => {
+        const wd = weeklyData.find(d => d.block_id === block.id && d.week_start === w)
+        const bl = getBaseline(block.id, w)
+        if (!wd || !bl || !bl.avg_electricity) return null
+        const days = wd.working_days || 6
+        const tbNgay = wd.electricity / days
+        const baselineTb = bl.avg_electricity / 30
+        return baselineTb > 0 ? ((baselineTb - tbNgay) / baselineTb) * 100 : null
+      }).filter(v => v !== null)
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null
+    }).filter(v => v !== null)
+  }, [availableWeeks, currentBlocks, weeklyData, baselines])
+
   if (loading) return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="text-center">
@@ -982,8 +1053,8 @@ export default function Dashboard() {
                 icon={<Zap size={18} className="text-white" />}
                 label="Tổng điện tiêu thụ"
                 value={totalElec > 0 ? `${(totalElec / 1000).toFixed(0)}K kWh` : '— kWh'}
-                sub="tuần này"
-                badgeText={scoredResults.filter(r => r.hasData).length > 0 ? `${scoredResults.filter(r => r.hasData).length} KV` : undefined}
+                sub={viewMode === 'month' ? 'tháng này' : 'tuần này'}
+                sparkline={sparklineElec}
               />
               {/* ô 2 - TB giảm/đơn vị */}
               <StatCard
@@ -993,6 +1064,8 @@ export default function Dashboard() {
                 sub="so với baseline"
                 badgeText={avgPctPerUnit >= 0 ? '↓ Tốt' : '↑ Tăng'}
                 badgeColor={avgPctPerUnit >= 0 ? 'green' : 'red'}
+                sparkline={sparklinePct}
+                sparklineColor={avgPctPerUnit >= 0 ? '#16a34a' : '#ef4444'}
               />
               {/* ô 4 - Vi phạm */}
               <StatCard
