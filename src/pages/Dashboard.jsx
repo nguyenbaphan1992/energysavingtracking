@@ -5,7 +5,7 @@ import {
   calcPctAbsolute, calcPctPerUnit, calculateGroupScores,
   formatNumber, formatPct, getPctColor, getRankBadgeClass, getRankLabel,
 } from '../utils/scoring'
-import { format, startOfWeek, endOfWeek, differenceInDays } from 'date-fns'
+import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -768,8 +768,7 @@ export default function Dashboard() {
 
       // Gom tổng
       const totalElec = monthWeeks.reduce((s, w) => s + (w.electricity || 0), 0)
-      const totalDays = monthWeeks.reduce((s, w) =>
-        s + differenceInDays(new Date(w.week_end), new Date(w.week_start)) + 1, 0)
+      const totalDays = monthWeeks.reduce((s, w) => s + (w.working_days || 6), 0)
       const totalSahOrPcs = monthWeeks.reduce((s, w) => s + (w.sah_or_pcs || 0), 0)
 
       // TB ngày tháng = tổng kWh / tổng ngày làm việc
@@ -804,10 +803,12 @@ export default function Dashboard() {
     return currentBlocks.map(block => {
       const wd = weeklyData.find(d => d.block_id === block.id && d.week_start === selectedWeek)
       const bl = getBaseline(block.id, selectedWeek)
-      if (!wd || !bl) return { block, hasData: false, pctAbsolute: 0, pctPerUnit: 0, electricity: 0, elec_per_unit: 0, tbNgay: 0, days: 7 }
-      const days = differenceInDays(new Date(wd.week_end), new Date(wd.week_start)) + 1
+      if (!wd || !bl) return { block, hasData: false, pctAbsolute: 0, pctPerUnit: 0, electricity: 0, elec_per_unit: 0, tbNgay: 0, days: 6 }
+      const days = wd.working_days || 6
       const tbNgay = days > 0 ? wd.electricity / days : 0
-      const pctAbsolute = calcPctAbsolute(wd.electricity, wd.week_start, wd.week_end, bl.avg_electricity)
+      const pctAbsolute = bl.avg_electricity > 0
+        ? ((bl.avg_electricity / 30) - tbNgay) / (bl.avg_electricity / 30) * 100
+        : 0
       const pctPerUnit = calcPctPerUnit(wd.elec_per_unit, bl.avg_elec_per_unit)
       return { block, hasData: true, electricity: wd.electricity, elec_per_unit: wd.elec_per_unit, tbNgay, pctAbsolute, pctPerUnit, days }
     })

@@ -5,7 +5,7 @@ import { Save, ChevronDown, CheckCircle, AlertCircle } from 'lucide-react'
 
 function AdminShell({ children, title, sub }) {
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-5 animate-slide-up">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5 animate-slide-up">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{sub}</p>
@@ -56,6 +56,7 @@ export default function DataEntry() {
           init[b.id] = {
             electricity: ex ? String(ex.electricity) : '',
             sah_or_pcs: ex ? String(ex.sah_or_pcs) : '',
+            working_days: ex ? String(ex.working_days ?? 6) : '6',
           }
         })
         setEntries(init)
@@ -81,6 +82,7 @@ export default function DataEntry() {
         week_end: weekEnd,
         electricity: parseFloat(entries[b.id].electricity),
         sah_or_pcs: parseFloat(entries[b.id].sah_or_pcs),
+        working_days: parseInt(entries[b.id].working_days) || 6,
       }))
 
     const { error } = await supabase.from('weekly_data').upsert(upserts, {
@@ -92,7 +94,7 @@ export default function DataEntry() {
   }
 
   return (
-    <AdminShell title="Nhập dữ liệu tuần" sub="Nhập số điện và SAH/Pcs cho từng khu vực theo tuần">
+    <AdminShell title="Nhập dữ liệu tuần" sub="Nhập số điện, SAH/Pcs và số ngày làm việc thực tế cho từng khu vực">
       {/* Toast */}
       {toast && (
         <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium animate-fade-in
@@ -124,6 +126,16 @@ export default function DataEntry() {
         </div>
       </div>
 
+      {/* Chú thích ngày làm việc */}
+      <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
+        <span className="text-base leading-none mt-0.5">⚠️</span>
+        <div>
+          <span className="font-semibold">Số ngày làm việc:</span> mặc định <strong>6 ngày</strong> (Thứ 2 – Thứ  7).
+          Nếu khu vực làm việc <strong>7 ngày</strong> trong tuần này (kể cả Chủ nhật), hãy chọn <strong>7</strong>.
+          Số ngày này dùng để tính TB ngày chính xác và <em>không ảnh hưởng dữ liệu tháng</em>.
+        </div>
+      </div>
+
       {/* Entry table */}
       <div className="card p-0 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
@@ -138,17 +150,22 @@ export default function DataEntry() {
                 <th className="px-4 py-3 text-left">Khu vực</th>
                 <th className="px-4 py-3 text-left">Đơn vị</th>
                 <th className="px-4 py-3 text-left">Điện tiêu thụ (kWh)</th>
-                <th className="px-4 py-3 text-left w-48">SAH / Pcs</th>
+                <th className="px-4 py-3 text-left w-40">SAH / Pcs</th>
+                <th className="px-4 py-3 text-center w-28">Ngày làm việc</th>
+                <th className="px-4 py-3 text-right">TB ngày (tự tính)</th>
                 <th className="px-4 py-3 text-right">Điện/đơn vị (tự tính)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {currentBlocks.map(block => {
-                const e = entries[block.id] || { electricity: '', sah_or_pcs: '' }
+                const e = entries[block.id] || { electricity: '', sah_or_pcs: '', working_days: '6' }
                 const elec = parseFloat(e.electricity) || 0
                 const unit = parseFloat(e.sah_or_pcs) || 0
-                const ratio = unit > 0 ? (elec / unit).toFixed(5) : '—'
+                const days = parseInt(e.working_days) || 6
+                const tbNgay = days > 0 && elec > 0 ? (elec / days).toFixed(1) : '—'
+                const ratio = unit > 0 && elec > 0 ? (elec / unit).toFixed(5) : '—'
                 const hasExisting = existingData.some(d => d.block_id === block.id)
+                const is7Days = days === 7
                 return (
                   <tr key={block.id} className={`transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/30 ${hasExisting ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
@@ -167,13 +184,38 @@ export default function DataEntry() {
                       <input type="number" min="0" value={e.electricity}
                         onChange={ev => handleChange(block.id, 'electricity', ev.target.value)}
                         placeholder="Nhập kWh..."
-                        className="input py-1.5 text-sm w-40" />
+                        className="input py-1.5 text-sm w-36" />
                     </td>
                     <td className="px-4 py-3">
                       <input type="number" min="0" value={e.sah_or_pcs}
                         onChange={ev => handleChange(block.id, 'sah_or_pcs', ev.target.value)}
                         placeholder={`Nhập ${block.metric_type}...`}
-                        className="input py-1.5 text-sm w-40" />
+                        className="input py-1.5 text-sm w-36" />
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        {[6, 7].map(d => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => handleChange(block.id, 'working_days', String(d))}
+                            className={`w-10 py-1.5 rounded-lg text-xs font-bold transition-all border
+                              ${days === d
+                                ? d === 7
+                                  ? 'bg-amber-500 text-white border-amber-500'
+                                  : 'gradient-bg text-white border-transparent'
+                                : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-200 dark:border-gray-700 hover:border-gray-400'
+                              }`}>
+                            {d}
+                          </button>
+                        ))}
+                      </div>
+                      {is7Days && (
+                        <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-0.5">Cả tuần</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-emerald-600 dark:text-emerald-400 font-semibold">
+                      {tbNgay}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-secondary-600 dark:text-secondary-400">
                       {ratio}
@@ -185,7 +227,10 @@ export default function DataEntry() {
           </table>
         </div>
 
-        <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+        <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <p className="text-xs text-gray-400">
+            Cột <strong>TB ngày</strong> và <strong>Điện/đơn vị</strong> tự tính — kiểm tra trước khi lưu.
+          </p>
           <button onClick={handleSave} disabled={saving} className="btn-primary">
             <Save size={16} />
             {saving ? 'Đang lưu...' : 'Lưu dữ liệu tuần này'}
