@@ -316,7 +316,7 @@ function CompactRankingTable({ results, groupName }) {
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {results.map((r, i) => {
               const rank = i + 1
-              const tbNgay = r.hasData && r.electricity ? r.electricity / (r.days || 7) : null
+              const tbNgay = r.hasData && r.tbNgay ? r.tbNgay : null
               return (
                 <tr
                   key={r.block.id}
@@ -409,7 +409,7 @@ function CompactRankingTable({ results, groupName }) {
 function Sidebar({
   open, setOpen,
   activeGroup, setActiveGroup,
-  selectedWeek, availableWeeks, weekIdx, setSelectedWeek,
+  selectedMonth, availableMonths, monthIdx, setSelectedMonth,
 }) {
   const { dark, toggle } = useTheme()
   const { user, signOut } = useAuth()
@@ -483,44 +483,41 @@ function Sidebar({
           </div>
         </div>
 
-        {/* Week selector */}
+        {/* Month selector */}
         <div className={`${open ? 'px-3' : 'px-2'}`}>
-          {open && <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tuần</div>}
+          {open && <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tháng</div>}
           <div className="flex items-center justify-between gap-1">
             <button
-              onClick={() => setSelectedWeek(availableWeeks[weekIdx + 1])}
-              disabled={weekIdx >= availableWeeks.length - 1}
+              onClick={() => setSelectedMonth(availableMonths[monthIdx + 1])}
+              disabled={monthIdx >= availableMonths.length - 1}
               className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors flex-shrink-0">
               <ChevronLeft size={13} />
             </button>
-            {open && selectedWeek && (
-              <div className="text-xs text-center font-medium text-gray-700 dark:text-gray-300 leading-tight min-w-0 px-1">
-                {format(new Date(selectedWeek), 'dd/MM', { locale: vi })}
-                <div className="text-gray-400 font-normal">
-                  — {format(new Date(new Date(selectedWeek).getTime() + 6 * 86400000), 'dd/MM', { locale: vi })}
-                </div>
+            {open && selectedMonth && (
+              <div className="text-xs text-center font-semibold text-gray-700 dark:text-gray-300 min-w-0 px-1">
+                T{parseInt(selectedMonth.split('-')[1])}/{selectedMonth.split('-')[0].slice(2)}
               </div>
             )}
             <button
-              onClick={() => setSelectedWeek(availableWeeks[weekIdx - 1])}
-              disabled={weekIdx <= 0}
+              onClick={() => setSelectedMonth(availableMonths[monthIdx - 1])}
+              disabled={monthIdx <= 0}
               className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors flex-shrink-0">
               <ChevronRight size={13} />
             </button>
           </div>
-          {/* Week pills (only when open) */}
-          {open && availableWeeks.length > 0 && (
+          {/* Month pills */}
+          {open && availableMonths.length > 0 && (
             <div className="mt-2 flex flex-col gap-1">
-              {availableWeeks.slice(0, 6).map(w => (
+              {availableMonths.slice(0, 6).map(m => (
                 <button
-                  key={w}
-                  onClick={() => setSelectedWeek(w)}
+                  key={m}
+                  onClick={() => setSelectedMonth(m)}
                   className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all ${
-                    selectedWeek === w
+                    selectedMonth === m
                       ? 'gradient-bg text-white'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}>
-                  {format(new Date(w), 'dd/MM', { locale: vi })} – {format(new Date(new Date(w).getTime() + 6 * 86400000), 'dd/MM', { locale: vi })}
+                  Tháng {parseInt(m.split('-')[1])}/{m.split('-')[0]}
                 </button>
               ))}
             </div>
@@ -610,8 +607,8 @@ export default function Dashboard() {
   const [blocks, setBlocks] = useState([])
   const [weeklyData, setWeeklyData] = useState([])
   const [baselines, setBaselines] = useState([])
-  const [availableWeeks, setAvailableWeeks] = useState([])
-  const [selectedWeek, setSelectedWeek] = useState(null)
+  const [availableMonths, setAvailableMonths] = useState([])
+  const [selectedMonth, setSelectedMonth] = useState(null)
   const [loading, setLoading] = useState(true)
   const [violationCount, setViolationCount] = useState(0)
   const [violationSlides, setViolationSlides] = useState([])
@@ -652,11 +649,11 @@ export default function Dashboard() {
         }))
       setViolationSlides(slides)
 
-      // Available weeks
-      const weekSet = new Set((wd.data || []).map(d => d.week_start))
-      const weeks = [...weekSet].sort((a, b) => b.localeCompare(a))
-      setAvailableWeeks(weeks)
-      if (weeks.length > 0) setSelectedWeek(weeks[0])
+      // Available months (YYYY-MM) derived from week_start
+      const monthSet = new Set((wd.data || []).map(d => d.week_start.substring(0, 7)))
+      const months = [...monthSet].sort((a, b) => b.localeCompare(a))
+      setAvailableMonths(months)
+      if (months.length > 0) setSelectedMonth(months[0])
       setLoading(false)
     })
   }, [])
@@ -669,20 +666,54 @@ export default function Dashboard() {
   const currentGroup = useMemo(() => groups.find(g => g.name === activeGroup), [groups, activeGroup])
   const currentBlocks = useMemo(() => blocks.filter(b => b.group_id === currentGroup?.id), [blocks, currentGroup])
 
-  const weekResults = useMemo(() => {
-    if (!selectedWeek || !currentBlocks.length) return []
+  // Tổng hợp tất cả tuần trong tháng → tính TB ngày tháng
+  const monthResults = useMemo(() => {
+    if (!selectedMonth || !currentBlocks.length) return []
     return currentBlocks.map(block => {
-      const wd = weeklyData.find(d => d.block_id === block.id && d.week_start === selectedWeek)
-      const bl = getBaseline(block.id, selectedWeek)
-      if (!wd || !bl) return { block, hasData: false, pctAbsolute: 0, pctPerUnit: 0, electricity: 0, elec_per_unit: 0, days: 7 }
-      const days = differenceInDays(new Date(wd.week_end), new Date(wd.week_start)) + 1
-      const pctAbsolute = calcPctAbsolute(wd.electricity, wd.week_start, wd.week_end, bl.avg_electricity)
-      const pctPerUnit = calcPctPerUnit(wd.elec_per_unit, bl.avg_elec_per_unit)
-      return { block, hasData: true, electricity: wd.electricity, elec_per_unit: wd.elec_per_unit, pctAbsolute, pctPerUnit, days }
-    })
-  }, [selectedWeek, currentBlocks, weeklyData, baselines])
+      const monthWeeks = weeklyData.filter(d =>
+        d.block_id === block.id &&
+        d.week_start.substring(0, 7) === selectedMonth
+      )
+      if (!monthWeeks.length) return { block, hasData: false, pctAbsolute: 0, pctPerUnit: 0, electricity: 0, elec_per_unit: 0, tbNgay: 0, days: 0 }
 
-  const scoredResults = useMemo(() => calculateGroupScores(weekResults), [weekResults])
+      // Lấy baseline theo tuần sớm nhất trong tháng
+      const sorted = [...monthWeeks].sort((a, b) => a.week_start.localeCompare(b.week_start))
+      const bl = getBaseline(block.id, sorted[0].week_start)
+      if (!bl) return { block, hasData: false, pctAbsolute: 0, pctPerUnit: 0, electricity: 0, elec_per_unit: 0, tbNgay: 0, days: 0 }
+
+      // Gom tổng
+      const totalElec = monthWeeks.reduce((s, w) => s + (w.electricity || 0), 0)
+      const totalDays = monthWeeks.reduce((s, w) =>
+        s + differenceInDays(new Date(w.week_end), new Date(w.week_start)) + 1, 0)
+      const totalSahOrPcs = monthWeeks.reduce((s, w) => s + (w.sah_or_pcs || 0), 0)
+
+      // TB ngày tháng = tổng kWh / tổng ngày làm việc
+      const tbNgay = totalDays > 0 ? totalElec / totalDays : 0
+      // Điện/đơn vị tháng = tổng kWh / tổng SAH·Pcs
+      const elecPerUnit = totalSahOrPcs > 0 ? totalElec / totalSahOrPcs : 0
+
+      // So với baseline
+      const baselineDailyElec = bl.avg_electricity / 30
+      const pctAbsolute = baselineDailyElec > 0
+        ? ((baselineDailyElec - tbNgay) / baselineDailyElec) * 100
+        : 0
+      const pctPerUnit = bl.avg_elec_per_unit > 0
+        ? ((bl.avg_elec_per_unit - elecPerUnit) / bl.avg_elec_per_unit) * 100
+        : 0
+
+      return {
+        block, hasData: true,
+        electricity: totalElec,
+        tbNgay,
+        elec_per_unit: elecPerUnit,
+        days: totalDays,
+        weekCount: monthWeeks.length,
+        pctAbsolute, pctPerUnit,
+      }
+    })
+  }, [selectedMonth, currentBlocks, weeklyData, baselines])
+
+  const scoredResults = useMemo(() => calculateGroupScores(monthResults), [monthResults])
 
   const totalElec = scoredResults.filter(r => r.hasData).reduce((s, r) => s + r.electricity, 0)
   const avgPctPerUnit = (() => {
@@ -691,7 +722,7 @@ export default function Dashboard() {
     return valid.reduce((s, r) => s + r.pctPerUnit, 0) / valid.length
   })()
   const leader = scoredResults[0]
-  const weekIdx = availableWeeks.indexOf(selectedWeek)
+  const monthIdx = availableMonths.indexOf(selectedMonth)
 
   if (loading) return (
     <div className="min-h-[60vh] flex items-center justify-center">
@@ -764,10 +795,10 @@ export default function Dashboard() {
         setOpen={setSidebarOpen}
         activeGroup={activeGroup}
         setActiveGroup={setActiveGroup}
-        selectedWeek={selectedWeek}
-        availableWeeks={availableWeeks}
-        weekIdx={weekIdx}
-        setSelectedWeek={setSelectedWeek}
+        selectedMonth={selectedMonth}
+        availableMonths={availableMonths}
+        monthIdx={monthIdx}
+        setSelectedMonth={setSelectedMonth}
       />
 
       {/* ── Main content ── */}
@@ -779,9 +810,9 @@ export default function Dashboard() {
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">
               Dashboard <span className="gradient-text">TKNL</span>
             </h1>
-            {selectedWeek && (
+            {selectedMonth && (
               <p className="text-xs text-gray-500 mt-0.5">
-                Tuần: {getWeekLabel(new Date(selectedWeek))}
+                Tháng {parseInt(selectedMonth.split('-')[1])}/{selectedMonth.split('-')[0]}
               </p>
             )}
           </div>
@@ -797,11 +828,11 @@ export default function Dashboard() {
               ))}
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={() => setSelectedWeek(availableWeeks[weekIdx + 1])} disabled={weekIdx >= availableWeeks.length - 1}
+              <button onClick={() => setSelectedMonth(availableMonths[monthIdx + 1])} disabled={monthIdx >= availableMonths.length - 1}
                 className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30">
                 <ChevronLeft size={14} />
               </button>
-              <button onClick={() => setSelectedWeek(availableWeeks[weekIdx - 1])} disabled={weekIdx <= 0}
+              <button onClick={() => setSelectedMonth(availableMonths[monthIdx - 1])} disabled={monthIdx <= 0}
                 className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30">
                 <ChevronRight size={14} />
               </button>
@@ -815,15 +846,15 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
               Dashboard — Nhóm <span className="gradient-text">{activeGroup}</span>
             </h1>
-            {selectedWeek && (
+            {selectedMonth && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Tuần {getWeekLabel(new Date(selectedWeek))} · Nhà máy Tinh Lợi
+                Tháng {parseInt(selectedMonth.split('-')[1])}/{selectedMonth.split('-')[0]} · Nhà máy Tinh Lợi
               </p>
             )}
           </div>
-          {selectedWeek && (
+          {selectedMonth && (
             <span className="text-xs px-3 py-1 rounded-full gradient-bg text-white font-medium shadow-sm">
-              {format(new Date(selectedWeek), 'dd/MM', { locale: vi })} – {format(new Date(new Date(selectedWeek).getTime() + 6 * 86400000), 'dd/MM/yyyy', { locale: vi })}
+              Tháng {parseInt(selectedMonth.split('-')[1])}/{selectedMonth.split('-')[0]}
             </span>
           )}
         </div>
