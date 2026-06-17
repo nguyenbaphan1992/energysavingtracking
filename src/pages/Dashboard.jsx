@@ -280,11 +280,11 @@ function StatCard({ icon, label, value, sub, highlight = false, badgeText, badge
 // ─────────────────────────────────────────────────────────
 // COMPACT RANKING TABLE (ô 5)
 // ─────────────────────────────────────────────────────────
-function CompactRankingTable({ results, groupName }) {
+function CompactRankingTable({ results, groupName, showScore = true }) {
   if (!results || results.length === 0) {
     return (
       <div className="card text-center py-6 text-gray-400 text-sm">
-        Chưa có dữ liệu tuần này cho nhóm {groupName}
+        Chưa có dữ liệu cho nhóm {groupName}
       </div>
     )
   }
@@ -310,7 +310,7 @@ function CompactRankingTable({ results, groupName }) {
               <th className="px-3 py-2.5 text-right">TB ngày (kWh)</th>
               <th className="px-3 py-2.5 text-right">% Tuyệt đối</th>
               <th className="px-3 py-2.5 text-right">% /Đơn vị</th>
-              <th className="px-3 py-2.5 text-right font-bold">Tổng điểm</th>
+              {showScore && <th className="px-3 py-2.5 text-right font-bold">Tổng điểm</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -346,11 +346,13 @@ function CompactRankingTable({ results, groupName }) {
                   <td className={`px-3 py-2.5 text-right font-medium text-xs ${getPctColor(r.pctPerUnit)}`}>
                     {r.hasData ? formatPct(r.pctPerUnit) : '—'}
                   </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <span className={`font-bold text-sm ${rank === 1 ? 'gradient-text' : 'text-gray-900 dark:text-gray-100'}`}>
-                      {formatNumber(r.ptsTotal)}
-                    </span>
-                  </td>
+                  {showScore && (
+                    <td className="px-3 py-2.5 text-right">
+                      <span className={`font-bold text-sm ${rank === 1 ? 'gradient-text' : 'text-gray-900 dark:text-gray-100'}`}>
+                        {formatNumber(r.ptsTotal)}
+                      </span>
+                    </td>
+                  )}
                 </tr>
               )
             })}
@@ -362,6 +364,7 @@ function CompactRankingTable({ results, groupName }) {
       <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-800">
         {results.map((r, i) => {
           const rank = i + 1
+          const tbNgay = r.hasData && r.tbNgay ? r.tbNgay : null
           return (
             <div key={r.block.id} className={`p-3 ${rank === 1 ? 'bg-yellow-50/50 dark:bg-yellow-900/10' : ''}`}>
               <div className="flex items-center justify-between">
@@ -374,12 +377,14 @@ function CompactRankingTable({ results, groupName }) {
                     <div className="text-xs text-gray-400">{r.block.metric_type}</div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className={`text-xl font-bold ${rank === 1 ? 'gradient-text' : ''}`}>
-                    {formatNumber(r.ptsTotal)}
+                {showScore && (
+                  <div className="text-right">
+                    <div className={`text-xl font-bold ${rank === 1 ? 'gradient-text' : ''}`}>
+                      {formatNumber(r.ptsTotal)}
+                    </div>
+                    <div className="text-xs text-gray-400">điểm</div>
                   </div>
-                  <div className="text-xs text-gray-400">điểm</div>
-                </div>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-1.5 text-center">
@@ -391,8 +396,8 @@ function CompactRankingTable({ results, groupName }) {
                   <div className={`font-semibold ${getPctColor(r.pctPerUnit)}`}>{r.hasData ? formatPct(r.pctPerUnit) : '—'}</div>
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-1.5 text-center">
-                  <div className="text-gray-400 mb-0.5">Điện</div>
-                  <div className="font-semibold">{r.hasData ? formatNumber(r.electricity, 0) : '—'}</div>
+                  <div className="text-gray-400 mb-0.5">TB ngày</div>
+                  <div className="font-semibold">{tbNgay ? formatNumber(tbNgay, 0) : '—'}</div>
                 </div>
               </div>
             </div>
@@ -409,7 +414,9 @@ function CompactRankingTable({ results, groupName }) {
 function Sidebar({
   open, setOpen,
   activeGroup, setActiveGroup,
+  viewMode, setViewMode,
   selectedMonth, availableMonths, monthIdx, setSelectedMonth,
+  selectedWeek, availableWeeks, weekIdx, setSelectedWeek,
 }) {
   const { dark, toggle } = useTheme()
   const { user, signOut } = useAuth()
@@ -483,7 +490,30 @@ function Sidebar({
           </div>
         </div>
 
+        {/* View mode toggle: Tháng / Tuần */}
+        <div className={`${open ? 'px-3' : 'px-2'}`}>
+          {open && <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Chế độ xem</div>}
+          <div className={`flex ${open ? 'flex-row gap-1' : 'flex-col gap-1 items-center'}`}>
+            {['month', 'week'].map(mode => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                title={mode === 'month' ? 'Tháng' : 'Tuần'}
+                className={`
+                  transition-all rounded-lg font-medium text-xs
+                  ${open ? 'flex-1 py-1.5 px-2' : 'w-9 h-9 flex items-center justify-center'}
+                  ${viewMode === mode
+                    ? 'gradient-bg text-white shadow-sm'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}
+                `}>
+                {open ? (mode === 'month' ? 'Tháng' : 'Tuần') : (mode === 'month' ? 'T' : 'W')}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Month selector */}
+        {viewMode === 'month' && (
         <div className={`${open ? 'px-3' : 'px-2'}`}>
           {open && <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tháng</div>}
           <div className="flex items-center justify-between gap-1">
@@ -523,6 +553,52 @@ function Sidebar({
             </div>
           )}
         </div>
+        )} {/* end month selector */}
+
+        {/* Week selector */}
+        {viewMode === 'week' && (
+        <div className={`${open ? 'px-3' : 'px-2'}`}>
+          {open && <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Tuần</div>}
+          <div className="flex items-center justify-between gap-1">
+            <button
+              onClick={() => setSelectedWeek(availableWeeks[weekIdx + 1])}
+              disabled={weekIdx >= availableWeeks.length - 1}
+              className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors flex-shrink-0">
+              <ChevronLeft size={13} />
+            </button>
+            {open && selectedWeek && (
+              <div className="text-xs text-center font-medium text-gray-700 dark:text-gray-300 leading-tight min-w-0 px-1">
+                {format(new Date(selectedWeek), 'dd/MM', { locale: vi })}
+                <div className="text-gray-400 font-normal">
+                  — {format(new Date(new Date(selectedWeek).getTime() + 6 * 86400000), 'dd/MM', { locale: vi })}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => setSelectedWeek(availableWeeks[weekIdx - 1])}
+              disabled={weekIdx <= 0}
+              className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 transition-colors flex-shrink-0">
+              <ChevronRight size={13} />
+            </button>
+          </div>
+          {open && availableWeeks.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1">
+              {availableWeeks.slice(0, 8).map(w => (
+                <button
+                  key={w}
+                  onClick={() => setSelectedWeek(w)}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-all ${
+                    selectedWeek === w
+                      ? 'gradient-bg text-white'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}>
+                  {format(new Date(w), 'dd/MM', { locale: vi })} – {format(new Date(new Date(w).getTime() + 6 * 86400000), 'dd/MM', { locale: vi })}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        )} {/* end week selector */}
 
         {/* Nav links */}
         <div className={`${open ? 'px-3' : 'px-2'}`}>
@@ -609,6 +685,9 @@ export default function Dashboard() {
   const [baselines, setBaselines] = useState([])
   const [availableMonths, setAvailableMonths] = useState([])
   const [selectedMonth, setSelectedMonth] = useState(null)
+  const [availableWeeks, setAvailableWeeks] = useState([])
+  const [selectedWeek, setSelectedWeek] = useState(null)
+  const [viewMode, setViewMode] = useState('month') // 'month' | 'week'
   const [loading, setLoading] = useState(true)
   const [violationCount, setViolationCount] = useState(0)
   const [violationSlides, setViolationSlides] = useState([])
@@ -654,6 +733,12 @@ export default function Dashboard() {
       const months = [...monthSet].sort((a, b) => b.localeCompare(a))
       setAvailableMonths(months)
       if (months.length > 0) setSelectedMonth(months[0])
+
+      // Available weeks
+      const weekSet = new Set((wd.data || []).map(d => d.week_start))
+      const weeks = [...weekSet].sort((a, b) => b.localeCompare(a))
+      setAvailableWeeks(weeks)
+      if (weeks.length > 0) setSelectedWeek(weeks[0])
       setLoading(false)
     })
   }, [])
@@ -713,7 +798,23 @@ export default function Dashboard() {
     })
   }, [selectedMonth, currentBlocks, weeklyData, baselines])
 
-  const scoredResults = useMemo(() => calculateGroupScores(monthResults), [monthResults])
+  // Dữ liệu theo tuần (dùng khi viewMode === 'week')
+  const weekResults = useMemo(() => {
+    if (!selectedWeek || !currentBlocks.length) return []
+    return currentBlocks.map(block => {
+      const wd = weeklyData.find(d => d.block_id === block.id && d.week_start === selectedWeek)
+      const bl = getBaseline(block.id, selectedWeek)
+      if (!wd || !bl) return { block, hasData: false, pctAbsolute: 0, pctPerUnit: 0, electricity: 0, elec_per_unit: 0, tbNgay: 0, days: 7 }
+      const days = differenceInDays(new Date(wd.week_end), new Date(wd.week_start)) + 1
+      const tbNgay = days > 0 ? wd.electricity / days : 0
+      const pctAbsolute = calcPctAbsolute(wd.electricity, wd.week_start, wd.week_end, bl.avg_electricity)
+      const pctPerUnit = calcPctPerUnit(wd.elec_per_unit, bl.avg_elec_per_unit)
+      return { block, hasData: true, electricity: wd.electricity, elec_per_unit: wd.elec_per_unit, tbNgay, pctAbsolute, pctPerUnit, days }
+    })
+  }, [selectedWeek, currentBlocks, weeklyData, baselines])
+
+  const activeResults = viewMode === 'month' ? monthResults : weekResults
+  const scoredResults = useMemo(() => calculateGroupScores(activeResults), [activeResults])
 
   const totalElec = scoredResults.filter(r => r.hasData).reduce((s, r) => s + r.electricity, 0)
   const avgPctPerUnit = (() => {
@@ -723,6 +824,7 @@ export default function Dashboard() {
   })()
   const leader = scoredResults[0]
   const monthIdx = availableMonths.indexOf(selectedMonth)
+  const weekIdx = availableWeeks.indexOf(selectedWeek)
 
   if (loading) return (
     <div className="min-h-[60vh] flex items-center justify-center">
@@ -795,10 +897,16 @@ export default function Dashboard() {
         setOpen={setSidebarOpen}
         activeGroup={activeGroup}
         setActiveGroup={setActiveGroup}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
         selectedMonth={selectedMonth}
         availableMonths={availableMonths}
         monthIdx={monthIdx}
         setSelectedMonth={setSelectedMonth}
+        selectedWeek={selectedWeek}
+        availableWeeks={availableWeeks}
+        weekIdx={weekIdx}
+        setSelectedWeek={setSelectedWeek}
       />
 
       {/* ── Main content ── */}
@@ -905,7 +1013,7 @@ export default function Dashboard() {
             </div>
 
             {/* ô 5 - Ranking table */}
-            <CompactRankingTable results={scoredResults} groupName={activeGroup} />
+            <CompactRankingTable results={scoredResults} groupName={activeGroup} showScore={viewMode === 'month'} />
           </div>
 
           {/* Right column: slideshow + bar chart */}
